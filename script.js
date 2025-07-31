@@ -11,7 +11,7 @@ let upKey;
 let downKey;
 let rightKey;
 let leftKey;
-let speed = 3;
+let speed = 5;
 
 //cursor variables
 let mouseX;
@@ -19,7 +19,7 @@ let mouseY;
 let mouseDown;
 
 //bullet variables
-const bulletSpeed = 5;
+const bulletSpeed = 10;
 const bulletDelay = 25;
 const bulletDamage = 1;
 const bulletX = this.x + this.width/2;
@@ -33,32 +33,33 @@ const draw = () => {
         ctx.clearRect(0, 0, canvas.width, canvas.height)
 
         //rendering player
-        ctx.fillStyle = "rgb(255 0 255)";
-        ctx.fillRect(playerPositionX, playerPositionY, 50, 50);
+        ctx.fillStyle = "rgb(255 0 0)";
+        ctx.fillRect(playerPositionX, playerPositionY, 25, 50);
         
         //rendering mouse crosshair
         //vertical line
+        const crosshairLineLength = 15;
         ctx.beginPath();
-        ctx.moveTo(mouseX, 0);
-        ctx.lineTo(mouseX, canvas.height);
-        ctx.strokeStyle = '#000000'; // Black color
+        ctx.moveTo(mouseX, mouseY - crosshairLineLength);
+        ctx.lineTo(mouseX, mouseY + crosshairLineLength);
+        ctx.strokeStyle = '#000000';
         ctx.stroke();
         //horizontal line
         ctx.beginPath();
-        ctx.moveTo(0, mouseY);
-        ctx.lineTo(canvas.width, mouseY);
-        ctx.strokeStyle = '#000000'; // Black color
+        ctx.moveTo(mouseX - crosshairLineLength, mouseY);
+        ctx.lineTo(mouseX + crosshairLineLength, mouseY);
+        ctx.strokeStyle = '#000000';
         ctx.stroke();        
         //red dot
         ctx.beginPath();
-        ctx.arc(mouseX, mouseY, 5, 0, 2 * Math.PI);
+        ctx.arc(mouseX, mouseY, 3, 0, 2 * Math.PI);
         ctx.fillStyle = "rgb(255 0 0)";
         ctx.fill();
 
         //rendering bullets
         bullets.forEach((bullet) => {
             ctx.beginPath();
-            ctx.arc(bullet.x, bullet.y, 4, 0, 2 * Math.PI); // radius = 5
+            ctx.arc(bullet.x, bullet.y, 4, 0, 2 * Math.PI);
             ctx.fillStyle = "rgb(255 255 0)";
             ctx.fill();
         })
@@ -80,6 +81,9 @@ const gameLoop = () => {
     } else if (leftKey === true) {
         playerPositionX -= speed;
     };
+    //lock player within the game world
+    playerPositionX = Math.max(0, Math.min(canvas.width - 25, playerPositionX));
+    playerPositionY = Math.max(0, Math.min(canvas.height - 50, playerPositionY));
 
     //shooting
     if (mouseDown && bulletCooldown <= 0) {
@@ -93,6 +97,13 @@ const gameLoop = () => {
         bullet.x += bullet.vx;
         bullet.y += bullet.vy;
     })
+    //Delete bullets that leave the canvas
+    for (let i = bullets.length - 1; i >= 0; i--) {
+        const b = bullets[i];
+        if (b.x < 0 || b.x > canvas.width || b.y < 0 || b.y> canvas.height) {
+            bullets.splice(i, 1);
+        }
+    }
 
     //game loop
     requestAnimationFrame(gameLoop)
@@ -140,7 +151,7 @@ document.addEventListener("mouseup", (event) => {
 
 
 const shooting = () => {
-    const originX = playerPositionX + 25;
+    const originX = playerPositionX + 12.5;
     const originY = playerPositionY + 25;
 
     const dx = mouseX - originX;
