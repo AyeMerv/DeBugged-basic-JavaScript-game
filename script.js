@@ -111,6 +111,35 @@ const draw = () => {
         ctx.textAlign = "right";
         ctx.textBaseline ="top";
         ctx.fillText(`Score: ${gameScore}`, canvas.width - 10, 20);
+
+        // Draw and animate score floating texts
+        for (let i = scoreAnimations.length - 1; i >= 0; i--) {
+            const anim = scoreAnimations[i];
+
+            // Interpolate position based on progress (0 to 1)
+            anim.progress += 0.02; // speed of animation (adjust as you like)
+            if (anim.progress > 1) anim.progress = 1;
+
+            // Calculate current position with linear interpolation
+            anim.x = anim.startX + (anim.endX - anim.startX) * anim.progress;
+            anim.y = anim.startY + (anim.endY - anim.startY) * anim.progress;
+
+            // Fade out near the end
+            anim.alpha = 1 - anim.progress;
+
+            ctx.globalAlpha = anim.alpha;
+            ctx.fillStyle = "yellow";
+            ctx.font = "bold 20px Arial";
+            ctx.textAlign = "center";
+            ctx.textBaseline = "middle";
+            ctx.fillText(anim.text, anim.x, anim.y);
+            ctx.globalAlpha = 1; // reset alpha
+
+            // Remove animation when done
+            if (anim.progress >= 1) {
+                scoreAnimations.splice(i, 1);
+            }
+        }
     }
 }
 
@@ -199,6 +228,17 @@ const gameLoop = () => {
                 bug.health -= bulletDamage;
                 if (bug.health <= 0) {
                     bugs.splice(j, 1);
+                    scoreAnimations.push({
+                        x: bug.x,
+                        y: bug.y,
+                        text: "+100",
+                        alpha: 1,
+                        progress: 0,
+                        startX: bug.x,
+                        startY: bug.y,
+                        endX: canvas.width - 10,
+                        endY: 20
+                    });
                     gameScore += 100;
                 }
                 bullets.splice(i, 1);
