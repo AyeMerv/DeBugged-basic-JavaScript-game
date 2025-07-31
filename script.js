@@ -1,11 +1,17 @@
 //Canvas variables
 const canvas = document.getElementById("canvas");
 const ctx = canvas.getContext("2d");
+const scoreAnimations = [];
+
+//Game variables
+let gameScore = 0;
 
 //Player variables
 let playerPositionX = 400;
 let playerPositionY = 250;
-let playerHealth;
+let playerHealth = 5;
+let playerMaxHealth = 5;
+let playerHitCooldown = 0;
 
 //movement variables
 let upKey;
@@ -33,6 +39,7 @@ let bugs = [];
 let bugHealth;
 let bugSpawnTimer = 0;
 let bugSpawnDelay = 500;
+
 
 //drawing the canvas and player
 const draw = () => {
@@ -73,11 +80,37 @@ const draw = () => {
 
         //rendering enemies
         for (let bug of bugs) {
+            const actualRadius = bug.radius + bug.health * 3;
+            //enemy circle
             ctx.beginPath();
-            ctx.arc(bug.x, bug.y, bug.radius, 0, 2 * Math.PI);
-            ctx.fillStyle = "lime";
+            ctx.arc(bug.x, bug.y, actualRadius, 0, 2 * Math.PI);
+            ctx.fillStyle = getBugColor(bug.health);
             ctx.fill();
-        }
+            // Dynamically scale font size with health (clamped between min and max)
+            const minFontSize = 24;
+            const maxFontSize = 48;
+            const fontSize = Math.min(maxFontSize, Math.max(minFontSize, bug.health * 2));
+            //enemy health
+            ctx.fillStyle = "white";
+            ctx.font = `bold ${fontSize}px Arial`;
+            ctx.textAlign = "center";
+            ctx.textBaseline = "middle";
+            ctx.fillText(bug.health, bug.x, bug.y);
+        }            
+
+        //HUD
+        // Display Player Health
+        ctx.fillStyle = "white";
+        ctx.font = "16px Arial";
+        ctx.textAlign = "left";
+        ctx.textBaseline ="top";
+        ctx.fillText(`Health: ${playerHealth}/${playerMaxHealth}`, 10, 20);
+        // Display Score
+        ctx.fillStyle = "white";
+        ctx.font = "16px Arial";
+        ctx.textAlign = "right";
+        ctx.textBaseline ="top";
+        ctx.fillText(`Score: ${gameScore}`, canvas.width - 10, 20);
     }
 }
 
@@ -86,79 +119,113 @@ const gameLoop = () => {
     //drawing canvas and player in loop
     draw();
 
-    //movement
-    if (upKey) { playerPositionY -= speed };
-    if (downKey) { playerPositionY += speed };
-    if (rightKey) { playerPositionX += speed };
-    if (leftKey) { playerPositionX -= speed };
+    if (playerHealth > 0) {
+
+        //movement
+        if (upKey) { playerPositionY -= speed };
+        if (downKey) { playerPositionY += speed };
+        if (rightKey) { playerPositionX += speed };
+        if (leftKey) { playerPositionX -= speed };
 
 
-    //lock player within the game world
-    playerPositionX = Math.max(0, Math.min(canvas.width - 25, playerPositionX));
-    playerPositionY = Math.max(0, Math.min(canvas.height - 50, playerPositionY));
+        //lock player within the game world
+        playerPositionX = Math.max(0, Math.min(canvas.width - 25, playerPositionX));
+        playerPositionY = Math.max(0, Math.min(canvas.height - 50, playerPositionY));
 
-    //shooting
-    if (mouseDown && bulletCooldown <= 0) {
-        shooting();
-        bulletCooldown = bulletDelay;
-    }
-    if (bulletCooldown > 0) {
-        bulletCooldown--;
-    }
-    bullets.forEach((bullet) => {
-        bullet.x += bullet.vx;
-        bullet.y += bullet.vy;
-    })
-
-    //Delete bullets that leave the canvas
-    for (let i = bullets.length - 1; i >= 0; i--) {
-        const b = bullets[i];
-        if (b.x < 0 || b.x > canvas.width || b.y < 0 || b.y> canvas.height) {
-            bullets.splice(i, 1);
+        //shooting
+        if (mouseDown && bulletCooldown <= 0) {
+            shooting();
+            bulletCooldown = bulletDelay;
         }
-    }
+        if (bulletCooldown > 0) {
+            bulletCooldown--;
+        }
+        bullets.forEach((bullet) => {
+            bullet.x += bullet.vx;
+            bullet.y += bullet.vy;
+        })
 
-    //Enemy spawning
-    if (bugSpawnTimer <= 0) {
-        spawnBug();
-        bugSpawnTimer = bugSpawnDelay;
+        //Delete bullets that leave the canvas
+        for (let i = bullets.length - 1; i >= 0; i--) {
+            const b = bullets[i];
+            if (b.x < 0 || b.x > canvas.width || b.y < 0 || b.y> canvas.height) {
+                bullets.splice(i, 1);
+            }
+        }
+
+        //Enemy spawning
+        if (bugSpawnTimer <= 0) {
+            spawnBug();
+            bugSpawnTimer = bugSpawnDelay;
+        } else {
+            bugSpawnTimer--;
+        }
+
+        //Enemies tracking player
+        for (let bug of bugs) {
+            const dx = playerPositionX + 25 - bug.x;
+            const dy = playerPositionY + 25 - bug.y;
+            const dist = Math.sqrt(dx * dx + dy * dy);
+            bug.x += (dx / dist) * bug.speed;
+            bug.y += (dy / dist) * bug.speed;
+
+            const bugCollisionRadius = bug.radius + (bug.health * 3);
+            if (dist < bugCollisionRadius + 25 && playerHitCooldown <= 0) {
+            playerHealth--;
+            playerHitCooldown = 60;
+            break;
+            }
+        }
+        
+        //constantly reducing player hit cooldown
+        if (playerHitCooldown > 0) {
+            playerHitCooldown--;
+        };
+
+        //Deleting bugs and bullets that collide
+        for (let i = bullets.length - 1; i >= 0; i--) {
+        const bullet = bullets[i];
+
+        for (let j = bugs.length - 1; j >= 0; j--) {
+            
+            const bug = bugs[j];
+            const dx = bullet.x - bug.x;
+            const dy = bullet.y - bug.y;
+            const distance = Math.sqrt(dx * dx + dy * dy);
+
+            const actualRadius = bug.radius + bug.health * 3;
+            if (distance < (bullet.radius || 4) + actualRadius) {
+                //remove both
+                bug.health -= bulletDamage;
+                if (bug.health <= 0) {
+                    bugs.splice(j, 1);
+                    gameScore += 100;
+                }
+                bullets.splice(i, 1);
+                break; // Move to next bullet
+                }
+            }
+        }
+
+
     } else {
-        bugSpawnTimer--;
+        //Game Over
+        ctx.fillStyle = "rgba(0, 0, 0, 0.7)";
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        ctx.fillStyle = "red";
+        ctx.font = "48px Arial";
+        ctx.textAlign = "center";
+        ctx.fillText("GAME OVER", canvas.width / 2, canvas.height / 2);
+
+        ctx.fillStyle = "white";
+        ctx.font = "20px Arial";
+        ctx.fillText("Refresh to restart", canvas.width / 2, canvas.height / 2 + 40);
+
+        return;
     }
-
-    //Enemies tracking player
-    for (let bug of bugs) {
-        const dx = playerPositionX + 25 - bug.x;
-        const dy = playerPositionY + 25 - bug.y;
-        const dist = Math.sqrt(dx * dx + dy * dy);
-        bug.x += (dx / dist) * bug.speed;
-        bug.y += (dy / dist) * bug.speed;
-    }
-
-    //Deleting bugs and bullets that collide
-    for (let i = bullets.length - 1; i >= 0; i--) {
-    const bullet = bullets[i];
-
-    for (let j = bugs.length - 1; j >= 0; j--) {
-        const bug = bugs[j];
-
-        const dx = bullet.x - bug.x;
-        const dy = bullet.y - bug.y;
-        const distance = Math.sqrt(dx * dx + dy * dy);
-
-        if (distance < bullet.radius + bug.radius) {
-            //remove both
-            bug.health -= bulletDamage;
-            if (bug.health <= 0) {
-                bugs.splice(j, 1);
-            }
-            bullets.splice(i, 1);
-            break; // Move to next bullet
-            }
-        }
-    }
-
-    //game loop
+    
+    //loop
     requestAnimationFrame(gameLoop)
 }
 
@@ -224,6 +291,15 @@ const shooting = () => {
     });
 }
 
+//determine bug color
+const getBugColor = (health) => {
+    if (health >= 8) return "darkred";
+    if (health >= 5) return "red";
+    if (health >= 3) return "orangered";
+    if (health >= 2) return "orange";
+    return "limegreen";
+}
+
 //Enemy spawn funtion
 const spawnBug = () => {
     const edge = Math.floor(Math.random() * 4);
@@ -244,7 +320,7 @@ const spawnBug = () => {
     }
 
     //Enemy variables
-    bugs.push({x, y, radius: 15, speed: 1, health: 1});
+    bugs.push({x, y, radius: 15, speed: 1, health: Math.floor(Math.random() * 9 + 1) });
 }
 
 //starting game loop
